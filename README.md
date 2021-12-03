@@ -12,7 +12,7 @@ Assumptions
 * Solution file in this dir
 * Project direct in a subdir
 * Running Docker Desktop on Windows 11 (with Windows Containers mode)
-* Using Process Isolation for containers
+* Using Process Isolation for containers (on desktop and AKS)
 
 ```pwsh
 wget https://github.com/microsoft/windows-container-tools/releases/download/v1.1/LogMonitor.exe
@@ -24,7 +24,7 @@ PROJECT_NAME=aspnetmvcapp
 
 Windows 11/Windows Server 2022
 
-```
+```pwsh
 docker pull mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2022
 docker pull mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2022
 
@@ -52,7 +52,7 @@ Test on Docker Desktop, Windows 11
 ----------------------------------
 
 ```pwsh
-docker run --rm -ti --isolation=process -p 8080:80 aspnetmvcapp:v1.0
+docker run --rm -ti --name aspnetmvcapp --isolation=process -p 8080:80 aspnetmvcapp:v1.0
 ```
 
 Browse to: [http://localhost:8080/Home/About](http://localhost:8080/Home/About)
@@ -60,19 +60,50 @@ Browse to: [http://localhost:8080/Home/About](http://localhost:8080/Home/About)
 Cores will match your host logical processors (e.g. 8).
 
 ```pwsh
+docker exec -ti aspnetmvcapp powershell
+
 Get-WmiObject -class win32_processor -Property “NumberOfLogicalProcessors” | Select-Object -Property “NumberOfLogicalProcessors”
 
 # NumberOfLogicalProcessors
 # -------------------------
 #                        8
+
+exit
 ```
 
 ```pwsh
-docker run --rm -ti --isolation=process --cpus 1 -p 8080:80 aspnetmvcapp:v1.0
+docker run --rm -ti --name aspnetmvcapp --isolation=process --cpus=1 --memory="1g" --isolation=process -p 8080:80 aspnetmvcapp:v1.0
 ```
 
 Browse to: [http://localhost:8080/Home/About](http://localhost:8080/Home/About)
 
+```pwsh
+docker exec -ti aspnetmvcapp powershell
+
+Get-WmiObject -class win32_processor -Property “NumberOfLogicalProcessors” | Select-Object -Property “NumberOfLogicalProcessors”
+
+# NumberOfLogicalProcessors
+# -------------------------
+#                        1
+
+exit
+```
+
 Cores match requested CPUs.  In this case 1 logical processor.
 
 The same applies when deployed to Kubernetes and specifying the CPU or Memory limits.
+
+Push image to ACR
+-----------------
+
+TODO
+
+Deploy to AKS
+-------------
+
+TODO
+
+Resources
+---------
+
+* [.NET Framework 4.8 Container Improvements (November 2021 Update, KB9008392)](https://github.com/microsoft/dotnet-framework-docker/issues/849)
