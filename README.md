@@ -9,58 +9,62 @@ Based on original code at: https://github.com/microsoft/dotnet-framework-docker/
 Assumptions
 -----------
 
-* Solution file in this dir
-* Project direct in a subdir
-* Running Docker Desktop on Windows 11 (with Windows Containers mode)
-* Using Process Isolation for containers (on desktop and AKS)
+* Visual Studio Solution (`myproject.sln`) file in this dir
+* Project directory in a subdir (`myproject`) with a project file (`myproject\myproject.csproj`)
+* Running Docker Desktop on Windows 10 or Windows 11 (with Windows Containers mode active)
+* Using Process Isolation for containers (on Desktop and AKS - if deploying to Kubernetes)
 
-```pwsh
-wget https://github.com/microsoft/windows-container-tools/releases/download/v1.1/LogMonitor.exe
+```powershell
+# Check https://github.com/microsoft/windows-container-tools/releases for latest stable release
+Invoke-WebRequest -Uri 'https://github.com/microsoft/windows-container-tools/releases/download/v2.0/LogMonitor.exe' -OutFile '.\LogMonitor.exe'
 
-REPOSITORY=aspnetmvcapp
-TAG=v1.0
-PROJECT_NAME=aspnetmvcapp
+$env:REPOSITORY='aspnetmvcapp'
+$env:TAG='v1.0'
+$env:PROJECT_NAME='aspnetmvcapp'
 ```
 
-Windows 11/Windows Server 2022
+See .NET Framework image tags here: https://mcr.microsoft.com/en-us/product/dotnet/framework/sdk/tags
 
-```pwsh
-docker pull mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2022
-docker pull mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2022
+For Windows 11/Windows Server 2022:
 
-docker tag mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2022 mcr.microsoft.com/dotnet/framework/sdk:4.8
-docker tag mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2022 mcr.microsoft.com/dotnet/framework/aspnet:4.8
+```powershell
+docker pull mcr.microsoft.com/dotnet/framework/sdk:4.8.1-windowsservercore-ltsc2022
+docker pull mcr.microsoft.com/dotnet/framework/aspnet:4.8.1-windowsservercore-ltsc2022
 
-docker build --build-arg project_name=$PROJECT_NAME -t $REPOSITORY:$TAG .
-docker push $REPOSITORY:$TAG
+docker tag mcr.microsoft.com/dotnet/framework/sdk:4.8.1-windowsservercore-ltsc2022 mcr.microsoft.com/dotnet/framework/sdk:4.8
+docker tag mcr.microsoft.com/dotnet/framework/aspnet:4.8.1-windowsservercore-ltsc2022 mcr.microsoft.com/dotnet/framework/aspnet:4.8
 ```
 
-Windows 10/Windows Server 2019
+For Windows 10/Windows Server 2019:
 
-```pwsh
+```powershell
 docker pull mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2019
 docker pull mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2019
 
 docker tag mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2019 mcr.microsoft.com/dotnet/framework/sdk:4.8
 docker tag mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2019 mcr.microsoft.com/dotnet/framework/aspnet:4.8
-
-docker build --build-arg project_name=$PROJECT_NAME -t $REPOSITORY:$TAG .
-docker push $REPOSITORY:$TAG
 ```
 
-Test on Docker Desktop, Windows 11
-----------------------------------
+Test on Docker Desktop
+----------------------
 
-```pwsh
-docker run --rm -ti --name aspnetmvcapp --isolation=process -p 8080:80 aspnetmvcapp:v1.0
+```powershell
+# Build without LogMonitor
+docker build --build-arg project_name=$env:PROJECT_NAME -t $env:REPOSITORY:$env:TAG .
+
+# Build with LogMonitor
+$env:TAG="$env:TAG-logmonitor"
+docker build --build-arg project_name=$env:PROJECT_NAME -t $env:REPOSITORY:$env:TAG -f Dockerfile.logmonitor .
+
+docker run --rm -ti --name $env:PROJECT_NAME --isolation=process -p 8080:80 $env:REPOSITORY:$env:TAG
 ```
 
 Browse to: [http://localhost:8080/Home/About](http://localhost:8080/Home/About)
 
 Cores will match your host logical processors (e.g. 8).
 
-```pwsh
-docker exec -ti aspnetmvcapp powershell
+```powershell
+docker exec -ti $env:PROJECT_NAME powershell
 
 Get-WmiObject -class win32_processor -Property “NumberOfLogicalProcessors” | Select-Object -Property “NumberOfLogicalProcessors”
 
@@ -71,14 +75,16 @@ Get-WmiObject -class win32_processor -Property “NumberOfLogicalProcessors” |
 exit
 ```
 
-```pwsh
-docker run --rm -ti --name aspnetmvcapp --isolation=process --cpus=1 --memory="1g" --isolation=process -p 8080:80 aspnetmvcapp:v1.0
+Restrict vCPUs and Memory available to the container:
+
+```powershell
+docker run --rm -ti --name $env:PROJECT_NAME --isolation=process --cpus=1 --memory="1g" --isolation=process -p 8080:80 $env:REPOSITORY:$env:TAG
 ```
 
 Browse to: [http://localhost:8080/Home/About](http://localhost:8080/Home/About)
 
-```pwsh
-docker exec -ti aspnetmvcapp powershell
+```powershell
+docker exec -ti $env:PROJECT_NAME powershell
 
 Get-WmiObject -class win32_processor -Property “NumberOfLogicalProcessors” | Select-Object -Property “NumberOfLogicalProcessors”
 
@@ -93,15 +99,30 @@ Cores match requested CPUs.  In this case 1 logical processor.
 
 The same applies when deployed to Kubernetes and specifying the CPU or Memory limits.
 
+Push image to Docker Hub or logged in container registry
+--------------------------------------------------------
+
+```powershell
+docker login
+docker push $REPOSITORY:$TAG
+```
+
 Push image to ACR
 -----------------
 
-TODO
+```powershell
+# TODO
+```
 
 Deploy to AKS
 -------------
 
 TODO
+
+- Test memory and CPU limits on AKs
+- Test running multiple pods on windows nodes
+- Test autoscaling and HPa with KEDA
+- Test Deallocate mode vs delete mode
 
 Resources
 ---------
